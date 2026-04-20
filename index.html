@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html>
+<head>
+<joseph name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;font-family:sans-serif;color:#fff}
+body{background:#000}
+.h{background:#000;padding:10px;position:sticky;top:0;z-index:9;border-bottom:1px solid #222;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.logo{font-weight:900;font-size:20px;background:linear-gradient(45deg,#25d366,#075e54);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.search{flex:1;background:#222;border:none;padding:8px 12px;border-radius:20px;color:#fff;font-size:14px}
+.status{font-size:11px;color:#999;display:flex;align-items:center;gap:5px}
+.dot{width:8px;height:8px;border-radius:50%;background:#555}
+.dot.on{background:#25d366}
+.loading{position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px}
+.loading.hide{display:none}
+.spinner{width:40px;height:40px;border:3px solid #333;border-top:3px solid #25d366;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.page{max-width:500px;margin:auto;padding-bottom:60px;display:none}
+.page.on{display:block}
+.stories{display:flex;gap:8px;padding:10px;overflow-x:auto;border-bottom:1px solid #222}
+.story{flex:0 0 70px;text-align:center;font-size:11px}
+.storyRing{width:60px;height:60px;border-radius:50%;padding:2px;background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);margin-bottom:4px}
+.storyRing.seen{background:#333}
+.storyAva{width:100%;height:100%;border-radius:50%;background:#075e54;border:2px solid #000;display:flex;align-items:center;justify-content:center;font-weight:700;object-fit:cover}
+.addStory.storyRing{background:#222}
+.feed{height:calc(100vh - 160px);overflow-y:scroll;scroll-snap-type:y mandatory}
+.post{height:calc(100vh - 160px);scroll-snap-align:start;position:relative;display:flex;flex-direction:column;justify-content:flex-end;background:#111}
+.postMedia{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:1}
+.postGradient{position:absolute;bottom:0;left:0;right:0;height:50%;background:linear-gradient(transparent,#000c);z-index:2}
+.postContent{position:relative;z-index:3;padding:15px}
+.postUser{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+.ava{width:36px;height:36px;border-radius:50%;background:#075e54;display:flex;align-items:center;justify-content:center;font-weight:700;position:relative;object-fit:cover}
+.avaOnline{position:absolute;bottom:-1px;right:-1px;width:12px;height:12px;background:#25d366;border:2px solid #000;border-radius:50%;display:none}
+.ava.online.avaOnline{display:block}
+.nameWrap{flex:1}
+.name{font-weight:700;font-size:15px;display:flex;align-items:center;gap:5px}
+.followBtn{font-size:11px;padding:3px 10px;background:#25d366;color:#000;border:none;border-radius:4px;font-weight:700}
+.followBtn.following{background:#333;color:#fff}
+.postText{font-size:15px;margin-bottom:10px}
+.hashtag{color:#4db5ff}
+.postActions{position:absolute;right:10px;bottom:80px;z-index:3;display:flex;flex-direction:column;gap:20px}
+.act{font-size:28px;text-align:center;filter:drop-shadow(0 0 2px #000);cursor:pointer}
+.actCount{font-size:12px;margin-top:2px;text-shadow:0 0 2px #000}
+.create{position:fixed;bottom:70px;right:15px;background:#25d366;color:#000;width:55px;height:55px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:300;border:none;z-index:10;cursor:pointer}
+.tabs{position:fixed;bottom:0;left:0;right:0;background:#000;display:flex;border-top:1px solid #222;z-index:10}
+.tab{flex:1;padding:12px;text-align:center;font-size:22px;color:#666;position:relative;cursor:pointer}
+.tab.on{color:#fff}
+.badge{position:absolute;top:6px;right:20%;background:#ff3040;color:#fff;font-size:10px;padding:2px 5px;border-radius:10px;display:none}
+.badge.show{display:block}
+.modal{position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:20;display:none;overflow-y:auto}
+.modal.on{display:block}
+.modalHead{padding:15px;border-bottom:1px solid #222;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#000;z-index:2}
+.modal input,.modal textarea{width:100%;background:#222;border:none;padding:12px;border-radius:8px;margin:8px 0;color:#fff;font-size:16px}
+.modal textarea{min-height:100px;resize:none}
+.modal button{width:100%;padding:14px;border:none;border-radius:8px;background:#25d366;color:#000;font-weight:700;margin:5px 0;cursor:pointer}
+.closeBtn{background:#333!important;color:#fff!important}
+.preview{width:100%;max-height:300px;object-fit:cover;border-radius:8px;margin:8px 0}
+.profile{text-align:center;padding:20px 15px}
+.profileAva{width:90px;height:90px;border-radius:50%;background:#075e54;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:35px;font-weight:700;position:relative;object-fit:cover;cursor:pointer}
+.profileStats{display:flex;justify-content:space-around;padding:15px 0;border-top:1px solid #222;border-bottom:1px solid #222;margin:15px 0}
+.stat{text-align:center}
+.statNum{font-weight:700;font-size:18px}
+.statLabel{font-size:12px;color:#999}
+.userList{padding:10px}
+.userItem{display:flex;align-items:center;gap:10px;padding:10px;background:#111;border-radius:8px;margin:5px 0;cursor:pointer}
+.userInfo{flex:1}
+.dmBox{position:fixed;bottom:0;left:0;right:0;background:#111;padding:10px;display:flex;gap:8px;z-index:15}
+.dmBox input{flex:1;background:#222;border:none;padding:10px;border-radius:20px;color:#fff}
+.msgList{padding:10px;height:calc(100vh - 120px);overflow-y:auto}
+.msg{margin:8px 0;max-width:70%;padding:8px 12px;border-radius:18px;font-size:15px}
+.msg.me{background:#075e54;margin-left:auto}
+.msg.other{background:#333}
+.notifItem{padding:12px;border-bottom:1px solid #222;font-size:14px}
+.notifItem.unread{background:#075e5415}
+.storyViewer{position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:30;display:none}
+.storyViewer.on{display:block}
+.storyProgress{position:absolute;top:8px;left:8px;right:8px;height:2px;background:#666;display:flex;gap:2px;z-index:2}
+.storyProgressBar{flex:1;background:#666;border-radius:2px}
+.storyProgressBar.active{background:#fff}
+.storyContent{width:100%;height:100%;object-fit:contain}
+.small{font-size:12px;color:#999}
+input[type=file]{display:none}
+video{width:100%;height:100%;object-fit:cover}
+#partyPlayer{width:100%;margin-top:15px}
+.authBox{max-width:350px;margin:20vh auto;padding:20px;text-align:center}
+.authBox input{margin:8px 0}
+.authBox button{margin:8px 0}
+.authToggle{color:#4db5ff;cursor:pointer;font-size:14px;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="loading" id="loading">
+  <div class="spinner"></div>
+  <div>Nyandarua Connect</div>
+  <div class="small" id="loadStatus">Starting...</div>
+</div>
+
+<!-- LOGIN/SIGNUP SCREEN -->
+<div id="authScreen" style="display:none">
+  <div class="authBox">
+    <div class="logo" style="font-size:32px;margin-bottom:20px">NC</div>
+    <h3 id="authTitle">Login</h3>
+    <input type="email" id="authEmail" placeholder="Email">
+    <input type="password" id="authPass" placeholder="Password">
+    <input type="text" id="authName" placeholder="Display Name" style="display:none">
+    <button onclick="doAuth()">Login</button>
+    <div class="authToggle" onclick="toggleAuth()">Don't have account? Sign up</div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="appScreen" style="display:none">
+  <div class="h">
+    <div class="logo">NC</div>
+    <input class="search" id="searchInput" placeholder="Search users, #hashtags" oninput="search()">
+    <div class="status">
+      <div class="dot" id="connDot"></div>
+      <span id="onlineCount">0</span>
+    </div>
+  </div>
+
+  <div class="page on" id="feedPage">
+    <div class="stories" id="storiesBar"></div>
+    <div class="feed" id="feed"></div>
+    <button class="create" onclick="openCreate()">+</button>
+  </div>
+
+  <div class="page" id="explorePage">
+    <div class="userList" id="exploreList"></div>
+  </div>
+
+  <div class="page" id="notifPage">
+    <div id="notifList"></div>
+  </div>
+
+  <div class="page" id="partyPage">
+    <div style="padding:15px">
+      <h3 style="margin-bottom:15px">🎵 Party Mode - Cheza Ngoma Pamoja</h3>
+      <input type="text" id="partySongUrl" placeholder="Weka YouTube link hapa">
+      <button onclick="startParty()">START PARTY KWA WOTE ONLINE</button>
+      <button class="closeBtn" onclick="stopParty()">STOP PARTY</button>
+      <p id="partyStatus" style="text-align:center;margin:15px 0;color:#999">Hakuna party sasa...</p>
+      <div id="partyPlayer"></div>
+      <div class="small" style="margin-top:15px;color:#666">Tip: Kila mtu aconnect Bluetooth kwa speaker yake. Ngoma itacheza synced kwa wote walio online.</div>
+    </div>
+  </div>
+
+  <div class="page" id="profilePage">
+    <div class="profile">
+      <input type="file" id="avaFile" accept="image/*" onchange="uploadAva(event)">
+      <img class="profileAva" id="myAva" onclick="document.getElementById('avaFile').click()">
+      <input id="myName" style="background:#222;border:none;padding:10px;border-radius:8px;color:#fff;text-align:center;font-size:18px;font-weight:700" onchange="saveUser()">
+      <div class="profileStats">
+        <div class="stat"><div class="statNum" id="myPostCount">0</div><div class="statLabel">Posts</div></div>
+        <div class="stat"><div class="statNum" id="myFollowersCount">0</div><div class="statLabel">Followers</div></div>
+        <div class="stat"><div class="statNum" id="myFollowingCount">0</div><div class="statLabel">Following</div></div>
+      </div>
+      <button class="closeBtn" onclick="logout()" style="margin:10px 15px;width:calc(100% - 30px)">Logout</button>
+    </div>
+    <div style="padding:0 15px"><b style="font-size:14px">ONLINE NOW</b></div>
+    <div class="userList" id="onlineList"></div>
+  </div>
+
+  <div class="modal" id="createModal">
+    <div class="modalHead"><h3>New Post</h3><span onclick="closeCreate()" style="font-size:24px;cursor:pointer">✕</span></div>
+    <div style="padding:15px">
+      <textarea id="postText" placeholder="Share your idea... #kisumu #hustle"></textarea>
+      <img id="imgPreview" class="preview" style="display:none">
+      <video id="vidPreview" class="preview" style="display:none" controls></video>
+      <input type="file" id="postFile" accept="image/*,video/*">
+      <button onclick="document.getElementById('postFile').click()">📷 Photo/Video</button>
+      <button onclick="publishPost()">POST TO EVERYONE</button>
+    </div>
+  </div>
+
+  <div class="modal" id="storyModal">
+    <div class="modalHead"><h3>Add Story</h3><span onclick="closeStory()" style="font-size:24px;cursor:pointer">✕</span></div>
+    <div style="padding:15px">
+      <img id="storyImgPreview" class="preview" style="display:none">
+      <video id="storyVidPreview" class="preview" style="display:none" controls></video>
+      <input type="file" id="storyFile" accept="image/*,video/*">
+      <button onclick="document.getElementById('storyFile').click()">📷 Choose Photo/Video</button>
+      <button onclick="publishStory()">ADD TO STORY</button>
+      <div class="small">Stories delete after 24hrs</div>
+    </div>
+  </div>
+
+  <div class="storyViewer" id="storyViewer" onclick="nextStory()">
+    <div class="storyProgress" id="storyProgress"></div>
+    <img class="storyContent" id="storyContentImg" style="display:none">
+    <video class="storyContent" id="storyContentVid" style="display:none" autoplay></video>
+    <div style="position:absolute;top:15px;left:15px;z-index:2;display:flex;align-items:center;gap:8px">
+      <img class="ava" id="storyUserAva" style="width:32px;height:32px">
+      <div class="name" id="storyUserName"></div>
+    </div>
+    <div style="position:absolute;top:15px;right:15px;z-index:2;font-size:24px;cursor:pointer" onclick="closeStoryViewer(event)">✕</div>
+  </div>
+
+  <div class="modal" id="dmModal">
+    <div class="modalHead">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span onclick="closeDM()" style="font-size:24px;cursor:pointer">←</span>
+        <img class="ava" id="dmUserAva" style="width:32px;height:32px">
+        <div class="name" id="dmUserName"></div>
+      </div>
+    <div class="msgList" id="msgList"></div>
+    <div class="dmBox">
+      <input id="dmInput" placeholder="Message...">
+      <button style="width:auto;padding:10px 15px" onclick="sendDM()">Send</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab on" onclick="showTab(0)">🏠</div>
+    <div class="tab" onclick="showTab(1)">🔍</div>
+    <div class="tab" onclick="showTab(2)">🔔<span class="badge" id="notifBadge"></span></div>
+    <div class="tab" onclick="showTab(3)">🎵</div>
+    <div class="tab" onclick="showTab(4)">👤</div>
+  </div>
+</div>
+
+<script>
+// === YOUTUBE API ===
+let tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+document.head.appendChild(tag);
+
+// === FIREBASE SETUP - WEKA YAKO HAPA ===
+const firebaseConfig = {
+  apiKey: "PASTE_YOUR_API_KEY",
+  authDomain: "PASTE_YOUR_AUTH_DOMAIN",
+  databaseURL: "PASTE_YOUR_DATABASE_URL",
+  projectId: "PASTE_YOUR_PROJECT_ID",
+  storageBucket: "PASTE_YOUR_STORAGE_BUCKET",
+  appId: "PASTE_YOUR_APP_ID"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+const storage = firebase.storage();
+
+let user = null, userData = {}, onlineUsers = {}, allUsers = {};
+let currentDMUser = null, storyQueue = [], storyIndex = 0, storyTimer = null;
+let partyPlayer, isLogin = true;
+
+// === AUTH ===
+auth.onAuthStateChanged(u => {
+  if (u) {
+    user = u;
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('appScreen').style.display = 'block';
+    document.getElementById('loading').classList.add('hide');
+    initApp();
+  } else {
+    user = null;
+    document.getElementById('authScreen').style.display = 'block';
+    document.getElementById('appScreen').style.display = 'none';
+    document.getElementById('loading').classList.add('hide');
+  }
+});
+
+function toggleAuth() {
+  isLogin =!isLogin;
+  document.getElementById('authTitle').textContent = isLogin? 'Login' : 'Sign Up';
+  document.getElementById('authName').style.display = isLogin? 'none' : 'block';
+  document.querySelector('#authScreen button').textContent = isLogin? 'Login' : 'Sign Up';
+  document.querySelector('.authToggle').textContent = isLogin? "Don't have account? Sign up" : "Have account? Login";
+}
+
+function doAuth() {
+  const email = document.getElementById('authEmail').value.trim();
+  const pass = document.getElementById('authPass').value;
+  const name = document.getElementById('authName').value.trim();
+  if (!email ||!pass) return alert('Jaza email na password');
+
+  if (isLogin) {
+    auth.signInWithEmailAndPassword(email, pass).catch(e => alert(e.message));
+  } else {
+    if (!name) return alert('Weka display name');
+    auth.createUserWithEmailAndPassword(email, pass).then(cred => {
+      return db.ref('users/' + cred.user.uid).set({name: name, email: email, ava: ''});
+    }).catch(e => alert(e.message));
+  }
+}
+
+function logout() {
+  if (confirm('Uko sure unataka kutoka?')) auth.signOut();
+}
+
+function initApp() {
+  setupPresence();
+  loadFeed();
+  db.ref('users/' + user.uid).on('value', snap => {
+    userData = snap.val() || {};
+    document.getElementById('myName').value = userData.name || user.email;
+    document.getElementById('myAva').src = userData.ava || '';
+    if (!userData.ava) document.getElementById('myAva').outerHTML = `<div class="profileAva" id="myAva" onclick="document.getElementById('avaFile').click()">${(userData.name || 'U').charAt(0)}</div>`;
+  });
+}
+
+function setupPresence() {
+  let userRef = db.ref('presence/' + user.uid);
+  let connectedRef = db.ref('.info/connected');
+  connectedRef.on('value', snap => {
+    if (snap.val() === true) {
+      document.getElementById('connDot').classList.add('on');
+      userRef.set({name: userData.name || user.email, ava: userData.ava || '', online: true, lastSeen: firebase.database.ServerValue.TIMESTAMP});
+      userRef.onDisconnect().update({online: false, lastSeen: firebase.database.ServerValue.TIMESTAMP});
+    } else {
+      document.getElementById('connDot').classList.remove('on');
+    }
+  });
+
+  db.ref('presence').on('value', snap => {
+    onlineUsers = {}; let count = 0;
+    snap.forEach(child => {
+      let v = child.val();
+      allUsers[child.key] = v;
+      if (v.online && Date.now() - v.lastSeen < 120000) { onlineUsers[child.key] = v; count++ }
+    });
+    document.getElementById('onlineCount').textContent = count;
+    renderOnlineList();
+    checkNotifications();
+    updateProfileStats();
+  });
+}
+
+function renderOnlineList() {
+  let html = '';
+  Object.entries(onlineUsers).forEach(([id, u]) => {
+    if (id == user.uid) return;
+    let avaHtml = u.ava? `<img class="ava online" src="${u.ava}">` : `<div class="ava online">${u.name.charAt(0)}<div class="avaOnline"></div></div>`;
+    html += `<div class="userItem" onclick="openDM('${id}','${u.name}','${u.ava || ''}')">
+      ${avaHtml}
+      <div class="userInfo"><div style="font-weight:700">${u.name}</div><div class="small" style="color:#25d366">Active now</div></div>
+    </div>`;
+  });
+  document.getElementById('onlineList').innerHTML = html || '<div class="small" style="padding:20px;text-align:center">No one else online</div>';
+}
+
+function saveUser() {
+  let newName = document.getElementById('myName').value.trim() || 'Anonymous';
+  db.ref('users/' + user.uid + '/name').set(newName);
+  db.ref('presence/' + user.uid + '/name').set(newName);
+}
+
+async function uploadAva(e) {
+  let file = e.target.files[0]; if (!file) return;
+  let ref = storage.ref('avatars/' + user.uid);
+  await ref.put(file);
+  let url = await ref.getDownloadURL();
+  db.ref('users/' + user.uid + '/ava').set(url);
+  db.ref('presence/' + user.uid + '/ava').set(url);
+}
+
+function updateProfileStats() {
+  db.ref('posts').orderByChild('userId').equalTo(user.uid).once('value', snap => {
+    document.getElementById('myPostCount').textContent = snap.numChildren();
+  });
+  db.ref('users/' + user.uid + '/followers').on('value', snap => {
+    document.getElementById('myFollowersCount').textContent = snap.numChildren();
+  });
+  db.ref('users/' + user.uid + '/following').on('value', snap => {
+    document.getElementById('myFollowingCount').textContent = snap.numChildren();
+  });
+}
+
+function showTab(n) {
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('on', i == n));
+  document.querySelectorAll('.page').forEach((p, i) => p.classList.toggle('on', i == n));
+  if (n == 1) loadExplore();
+  if (n == 2) loadNotifications();
+  if (n == 3) listenToParty();
+  if (n == 4) updateProfileStats();
+}
+
+function loadFeed() {
+  db.ref('posts').limitToLast(50).on('value', snap => {
+    let posts = [];
+    snap.forEach(child => { posts.unshift({id: child.key,...child.val()}) });
+    renderFeed(posts);
+  });
+  loadStories();
+}
+
+function loadStories() {
+  db.ref('stories').on('value', snap => {
+    let stories = {}, html = `<div class="story addStory" onclick="openStoryModal()"><div class="storyRing"><div class="storyAva">+</div></div>Add</div>`;
+    snap.forEach(child => {
+      let s = child.val();
+      if (Date.now() - s.time > 86400000) return;
+      if (!stories[s.userId]) stories[s.userId] = {user: s.userName, ava: s.userAva, items: []};
+      stories[s.userId].items.push({id: child.key,...s});
+    });
+    Object.entries(stories).forEach(([uid, data]) => {
+      let avaHtml = data.ava? `<img class="storyAva" src="${data.ava}">` : `<div class="storyAva">${data.user.charAt(0)}</div>`;
+      html += `<div class="story" onclick='viewStories("${uid}")'>
+        <div class="storyRing">${avaHtml}</div>
+        ${data.user.split(' ')[0]}
+      </div>`;
+    });
+    document.getElementById('storiesBar').innerHTML = html;
+    window.allStories = stories;
+  });
+}
+
+function renderFeed(posts) {
+  let html = '';
+  posts.forEach(p => {
+    let liked = p.likes && p.likes[user.uid];
+    let isOnline = onlineUsers[p.userId]? 'online' : '';
+    let mediaTag = p.video? `<video class="postMedia" src="${p.video}" autoplay muted loop playsinline></video>` :
+                   p.img? `<img class="postMedia" src="${p.img}">` : '';
+    let text = p.text.replace(/#(\w+)/g, '<span class="hashtag">#$1</span>');
+    let avaHtml = p.userAva? `<img class="ava ${isOnline}" src="${p.userAva}">` : `<div class="ava ${isOnline}">${p.userName.charAt(0)}<div class="avaOnline"></div></div>`;
+
+    db.ref('users/' + user.uid + '/following/' + p.userId).once('value', fsnap => {
+      let isFollowing = fsnap.exists();
+      let followBtn = p.userId!= user.uid? `<button class="followBtn ${isFollowing?'following':''}" onclick="toggleFollow('${p.userId}','${p.userName}',event)">${isFollowing?'Following':'Follow'}</button>` : '';
+      document.getElementById('followBtn_' + p.id).innerHTML = followBtn;
+    });
+
+    html += `<div class="post">
+      ${mediaTag}
+      <div class="postGradient"></div>
+      <div class="postActions">
+        <div class="act" onclick="likePost('${p.id}')">${liked?'❤️':'🤍'}<div class="actCount">${p.likes?Object.keys(p.likes).length:0}</div></div>
+        <div class="act" onclick="openComments('${p.id}')">💬<div class="actCount">${p.comments?Object.keys(p.comments).length:0}</div></div>
+        <div class="act" onclick="openDM('${p.userId}','${p.userName}','${p.userAva||''}')">✉️</div>
+      </div>
+      <div class="postContent">
+        <div class="postUser">
+          ${avaHtml}
+          <div class="nameWrap">
+            <div class="name">${p.userName}
+              <span id="followBtn_${p.id}"></span>
+            </div>
+          </div>
+        </div>
+        <div class="postText">${text}</div>
+      </div>
+    </div>`;
+  });
+  document.getElementById('feed').innerHTML = html || '<div style="padding:50px;text-align:center;color:#666">No posts yet</div>';
+}
+
+function openCreate() { document.getElementById('createModal').classList.add('on') }
+function closeCreate() {
+  document.getElementById('createModal').classList.remove('on');
+  document.getElementById('postText').value = '';
+  document.getElementById('imgPreview').style.display = 'none';
+  document.getElementById('vidPreview').style.display = 'none';
+  document.getElementById('postFile').value = '';
+}
+
+document.getElementById('postFile').onchange = e => {
+  let f = e.target.files[0]; if (!f) return;
+  let r = new FileReader();
+  r.onload = ev => {
+    if (f.type.startsWith('video')) {
+      document.getElementById('vidPreview').src = ev.target.result;
+      document.getElementById('vidPreview').style.display = 'block';
+      document.getElementById('imgPreview').style.display = 'none';
+    } else {
+      document.getElementById('imgPreview').src = ev.target.result;
+      document.getElementById('imgPreview').style.display = 'block';
+      document.getElementById('vidPreview').style.display = 'none';
+    }
+  };
+  r.readAsDataURL(f);
+};
+
+async function publishPost() {
+  let text = document.getElementById('postText').value.trim();
+  let file = document.getElementById('postFile').files[0];
+  if (!text &&!file) return alert('Add text or media');
+  let url = '', isVid = false;
+  if (file) {
+    isVid = file.type.startsWith('video');
+    let ref = storage.ref('posts/' + Date.now() + '_' + file.name);
+    await ref.put(file);
+    url = await ref.getDownloadURL();
+  }
+  let post = {userName: userData.name, userAva: userData.ava || '', userId: user.uid, text: text, time: Date.now()};
+  if (url) post[isVid? 'video' : 'img'] = url;
+  db.ref('posts').push(post);
+  closeCreate();
+}
+
+function openStoryModal() { document.getElementById('storyModal').classList.add('on') }
+function closeStory() {
+  document.getElementById('storyModal').classList.remove('on');
+  document.getElementById('storyFile').value = '';
+}
+document.getElementById('storyFile').onchange = e => {
+  let f = e.target.files[0]; if (!f) return;
+  let r = new FileReader();
+  r.onload = ev => {
+    if (f.type.startsWith('video')) {
+      document.getElementById('storyVidPreview').src = ev.target.result;
+      document.getElementById('storyVidPreview').style.display = 'block';
+      document.getElementById('storyImgPreview').style.display = 'none';
+    } else {
+      document.getElementById('storyImgPreview').src = ev.target.result;
+      document.getElementById('storyImgPreview').style.display = 'block';
+      document.getElementById('storyVidPreview').style.display = 'none';
+    }
+  };
+  r.readAsDataURL(f);
+};
+async function publishStory() {
+  let file = document.getElementById('storyFile').files[0];
+  if (!file) return alert('Choose photo/video');
+  let ref = storage.ref('stories/' + Date.now() + '_' + file.name);
+  await ref.put(file);
+  let url = await ref.getDownloadURL();
+  db.ref('stories').push({
+    userName: userData.name, userAva: userData.ava || '', userId: user.uid,
+    media: url, isVideo: file.type.startsWith('video'), time: Date.now()
+  });
+  closeStory();
+}
+function viewStories(uid) {
+  storyQueue = allStories[uid].items; storyIndex = 0;
+  document.getElementById('storyViewer').classList.add('on');
+  showStory();
+}
+function showStory() {
+  if (storyIndex >= storyQueue.length) { closeStoryViewer(); return }
+  let s = storyQueue[storyIndex];
+  document.getElementById('storyUserName').textContent = s.userName;
+  document.getElementById('storyUserAva').src = s.userAva;
+  let progHtml = ''; storyQueue.forEach((_, i) => { progHtml += `<div class="storyProgressBar ${i==storyIndex?'active':''}"></div>` });
+  document.getElementById('storyProgress').innerHTML = progHtml;
+  if (s.isVideo) {
+    document.getElementById('storyContentVid').src = s.media;
+    document.getElementById('storyContentVid').style.display = 'block';
+    document.getElementById('storyContentImg').style.display = 'none';
+  } else {
+    document.getElementById('storyContentImg').src = s.media;
+    document.getElementById('storyContentImg').style.display = 'block';
+    document.getElementById('storyContentVid').style.display = 'none';
+  }
+  clearTimeout(storyTimer);
+  storyTimer = setTimeout(() => { storyIndex++; showStory() }, s.isVideo? 15000 : 5000);
+}
+function nextStory() { storyIndex++; showStory() }
+function closeStoryViewer(e) { if (e) e.stopPropagation(); document.getElementById('storyViewer').classList.remove('on'); clearTimeout(storyTimer) }
+
+function startParty() {
+  const url = document.getElementById('partySongUrl').value;
+  const videoId = extractVideoID(url);
+  if (!videoId) return alert('Weka link ya YouTube valid mkuu');
+  db.ref('party').set({
+    song: videoId, host: userData.name, hostId: user.uid,
+    started: firebase.database.ServerValue.TIMESTAMP, playing: true
+  });
+  document.getElementById('partyStatus').innerText = 'Umeanza party! Wengine wanasikia...';
+}
+function stopParty() {
+  db.ref('party').remove();
+  document.getElementById('partyStatus').innerText = 'Party imeisha';
+}
+function listenToParty() {
+  db.ref('party').on('value', (snap) => {
+    const data = snap.val();
+    if (!data ||!data.playing) {
+      document.getElementById('partyStatus').innerText = 'Hakuna party sasa...';
+      if (partyPlayer) { partyPlayer.destroy(); partyPlayer = null; }
+      document.getElementById('partyPlayer').innerHTML = '';
+      return;
+    }
+    document.getElementById('partyStatus').innerText = `Party na ${data.host} - Speaker zako zicheze!`;
+    if (!partyPlayer) {
+      partyPlayer = new YT.Player('partyPlayer', {
+        height: '200', width: '100%', videoId: data.song,
+        playerVars: {'playsinline': 1, 'autoplay': 1, 'controls': 1},
+        events: {'onReady':
