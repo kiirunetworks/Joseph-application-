@@ -103,6 +103,7 @@ video{width:100%;height:100%;object-fit:cover}
 .authBox input{margin:8px 0}
 .authBox button{margin:8px 0}
 .authToggle{color:#4db5ff;cursor:pointer;font-size:14px;margin-top:10px}
+.error{color:#ff3040;font-size:12px;margin:10px 0}
 </style>
 </head>
 <body>
@@ -112,11 +113,11 @@ video{width:100%;height:100%;object-fit:cover}
   <div class="small" id="loadStatus">Starting...</div>
 </div>
 
-<!-- LOGIN/SIGNUP SCREEN -->
 <div id="authScreen" style="display:none">
   <div class="authBox">
     <div class="logo" style="font-size:32px;margin-bottom:20px">NC</div>
     <h3 id="authTitle">Login</h3>
+    <div class="error" id="authError"></div>
     <input type="email" id="authEmail" placeholder="Email">
     <input type="password" id="authPass" placeholder="Password">
     <input type="text" id="authName" placeholder="Display Name" style="display:none">
@@ -125,7 +126,6 @@ video{width:100%;height:100%;object-fit:cover}
   </div>
 </div>
 
-<!-- MAIN APP -->
 <div id="appScreen" style="display:none">
   <div class="h">
     <div class="logo">NC</div>
@@ -166,6 +166,7 @@ video{width:100%;height:100%;object-fit:cover}
     <div class="profile">
       <input type="file" id="avaFile" accept="image/*" onchange="uploadAva(event)">
       <img class="profileAva" id="myAva" onclick="document.getElementById('avaFile').click()">
+      <div class="profileAva" id="myAvaText" style="display:none" onclick="document.getElementById('avaFile').click()">U</div>
       <input id="myName" style="background:#222;border:none;padding:10px;border-radius:8px;color:#fff;text-align:center;font-size:18px;font-weight:700" onchange="saveUser()">
       <div class="profileStats">
         <div class="stat"><div class="statNum" id="myPostCount">0</div><div class="statLabel">Posts</div></div>
@@ -218,8 +219,10 @@ video{width:100%;height:100%;object-fit:cover}
       <div style="display:flex;align-items:center;gap:10px">
         <span onclick="closeDM()" style="font-size:24px;cursor:pointer">←</span>
         <img class="ava" id="dmUserAva" style="width:32px;height:32px">
+        <div class="ava" id="dmUserAvaText" style="width:32px;height:32px;display:none">U</div>
         <div class="name" id="dmUserName"></div>
       </div>
+    </div>
     <div class="msgList" id="msgList"></div>
     <div class="dmBox">
       <input id="dmInput" placeholder="Message...">
@@ -234,45 +237,43 @@ video{width:100%;height:100%;object-fit:cover}
     <div class="tab" onclick="showTab(3)">🎵</div>
     <div class="tab" onclick="showTab(4)">👤</div>
   </div>
-</div>
-
-<script>
-// === YOUTUBE API ===
+  </div><script>
 let tag = document.createElement('script');
 tag.src = "https://www.youtube.com/iframe_api";
 document.head.appendChild(tag);
 
-// === FIREBASE SETUP - WEKA YAKO HAPA ===
-const firebaseConfig = {
-  apiKey: "PASTE_YOUR_API_KEY",
-  authDomain: "PASTE_YOUR_AUTH_DOMAIN",
-  databaseURL: "PASTE_YOUR_DATABASE_URL",
-  projectId: "PASTE_YOUR_PROJECT_ID",
-  storageBucket: "PASTE_YOUR_STORAGE_BUCKET",
-  appId: "PASTE_YOUR_APP_ID"
-};
-firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.database();
 const storage = firebase.storage();
 
 let user = null, userData = {}, onlineUsers = {}, allUsers = {};
 let currentDMUser = null, storyQueue = [], storyIndex = 0, storyTimer = null;
-let partyPlayer, isLogin = true;
+let partyPlayer, isLogin = true, followCache = {};
 
-// === AUTH ===
+window.addEventListener('error', e => {
+  document.getElementById('loadStatus').textContent = 'Error: ' + e.message;
+  console.error(e);
+});
+
+setTimeout(() => {
+  if (!document.getElementById('loading').classList.contains('hide')) {
+    document.getElementById('loadStatus').textContent = 'Firebase timeout - check rules';
+    document.getElementById('loading').classList.add('hide');
+    document.getElementById('authScreen').style.display = 'block';
+  }
+}, 5000);
+
 auth.onAuthStateChanged(u => {
+  document.getElementById('loading').classList.add('hide');
   if (u) {
     user = u;
     document.getElementById('authScreen').style.display = 'none';
     document.getElementById('appScreen').style.display = 'block';
-    document.getElementById('loading').classList.add('hide');
     initApp();
   } else {
     user = null;
     document.getElementById('authScreen').style.display = 'block';
     document.getElementById('appScreen').style.display = 'none';
-    document.getElementById('loading').classList.add('hide');
   }
 });
 
@@ -282,21 +283,25 @@ function toggleAuth() {
   document.getElementById('authName').style.display = isLogin? 'none' : 'block';
   document.querySelector('#authScreen button').textContent = isLogin? 'Login' : 'Sign Up';
   document.querySelector('.authToggle').textContent = isLogin? "Don't have account? Sign up" : "Have account? Login";
+  document.getElementById('authError').textContent = '';
 }
 
 function doAuth() {
   const email = document.getElementById('authEmail').value.trim();
   const pass = document.getElementById('authPass').value;
   const name = document.getElementById('authName').value.trim();
-  if (!email ||!pass) return alert('Jaza email na password');
+  const err = document.getElementById('authError');
+  err.textContent = '';
+
+  if (!email ||!pass) return err.textContent = 'Jaza email na password';
 
   if (isLogin) {
-    auth.signInWithEmailAndPassword(email, pass).catch(e => alert(e.message));
+    auth.signInWithEmailAndPassword(email, pass).catch(e => err.textContent = e.message);
   } else {
-    if (!name) return alert('Weka display name');
+    if (!name) return err.textContent = 'Weka display name';
     auth.createUserWithEmailAndPassword(email, pass).then(cred => {
       return db.ref('users/' + cred.user.uid).set({name: name, email: email, ava: ''});
-    }).catch(e => alert(e.message));
+    }).catch(e => err.textContent = e.message);
   }
 }
 
@@ -310,8 +315,15 @@ function initApp() {
   db.ref('users/' + user.uid).on('value', snap => {
     userData = snap.val() || {};
     document.getElementById('myName').value = userData.name || user.email;
-    document.getElementById('myAva').src = userData.ava || '';
-    if (!userData.ava) document.getElementById('myAva').outerHTML = `<div class="profileAva" id="myAva" onclick="document.getElementById('avaFile').click()">${(userData.name || 'U').charAt(0)}</div>`;
+    if (userData.ava) {
+      document.getElementById('myAva').src = userData.ava;
+      document.getElementById('myAva').style.display = 'block';
+      document.getElementById('myAvaText').style.display = 'none';
+    } else {
+      document.getElementById('myAva').style.display = 'none';
+      document.getElementById('myAvaText').style.display = 'flex';
+      document.getElementById('myAvaText').textContent = (userData.name || 'U').charAt(0);
+    }
   });
 }
 
@@ -392,10 +404,13 @@ function showTab(n) {
 }
 
 function loadFeed() {
-  db.ref('posts').limitToLast(50).on('value', snap => {
-    let posts = [];
-    snap.forEach(child => { posts.unshift({id: child.key,...child.val()}) });
-    renderFeed(posts);
+  db.ref('users/' + user.uid + '/following').once('value', fsnap => {
+    followCache = fsnap.val() || {};
+    db.ref('posts').limitToLast(50).on('value', snap => {
+      let posts = [];
+      snap.forEach(child => { posts.unshift({id: child.key,...child.val()}) });
+      renderFeed(posts);
+    });
   });
   loadStories();
 }
@@ -430,12 +445,8 @@ function renderFeed(posts) {
                    p.img? `<img class="postMedia" src="${p.img}">` : '';
     let text = p.text.replace(/#(\w+)/g, '<span class="hashtag">#$1</span>');
     let avaHtml = p.userAva? `<img class="ava ${isOnline}" src="${p.userAva}">` : `<div class="ava ${isOnline}">${p.userName.charAt(0)}<div class="avaOnline"></div></div>`;
-
-    db.ref('users/' + user.uid + '/following/' + p.userId).once('value', fsnap => {
-      let isFollowing = fsnap.exists();
-      let followBtn = p.userId!= user.uid? `<button class="followBtn ${isFollowing?'following':''}" onclick="toggleFollow('${p.userId}','${p.userName}',event)">${isFollowing?'Following':'Follow'}</button>` : '';
-      document.getElementById('followBtn_' + p.id).innerHTML = followBtn;
-    });
+    let isFollowing = followCache[p.userId];
+    let followBtn = p.userId!= user.uid? `<button class="followBtn ${isFollowing?'following':''}" onclick="toggleFollow('${p.userId}','${p.userName}',event)">${isFollowing?'Following':'Follow'}</button>` : '';
 
     html += `<div class="post">
       ${mediaTag}
@@ -449,11 +460,8 @@ function renderFeed(posts) {
         <div class="postUser">
           ${avaHtml}
           <div class="nameWrap">
-            <div class="name">${p.userName}
-              <span id="followBtn_${p.id}"></span>
-            </div>
+            <div class="name">${p.userName} ${followBtn}</div>
           </div>
-        </div>
         <div class="postText">${text}</div>
       </div>
     </div>`;
@@ -562,9 +570,7 @@ function showStory() {
   storyTimer = setTimeout(() => { storyIndex++; showStory() }, s.isVideo? 15000 : 5000);
 }
 function nextStory() { storyIndex++; showStory() }
-function closeStoryViewer(e) { if (e) e.stopPropagation(); document.getElementById('storyViewer').classList.remove('on'); clearTimeout(storyTimer) }
-
-function startParty() {
+function closeStoryViewer(e) { if (e) e.stopPropagation(); document.getElementById('storyViewer').classList.remove('on'); clearTimeout(storyTimer) }function startParty() {
   const url = document.getElementById('partySongUrl').value;
   const videoId = extractVideoID(url);
   if (!videoId) return alert('Weka link ya YouTube valid mkuu');
@@ -574,14 +580,16 @@ function startParty() {
   });
   document.getElementById('partyStatus').innerText = 'Umeanza party! Wengine wanasikia...';
 }
+
 function stopParty() {
   db.ref('party').remove();
   document.getElementById('partyStatus').innerText = 'Party imeisha';
 }
+
 function listenToParty() {
   db.ref('party').on('value', (snap) => {
     const data = snap.val();
-    if (!data ||!data.playing) {
+    if (!data || !data.playing) {
       document.getElementById('partyStatus').innerText = 'Hakuna party sasa...';
       if (partyPlayer) { partyPlayer.destroy(); partyPlayer = null; }
       document.getElementById('partyPlayer').innerHTML = '';
@@ -614,10 +622,9 @@ function likePost(id) {
       likeRef.remove();
     } else {
       likeRef.set(true);
-      // Add notification
       db.ref('posts/' + id).once('value', postSnap => {
         const post = postSnap.val();
-        if (post.userId!== user.uid) {
+        if (post.userId !== user.uid) {
           db.ref('notifications/' + post.userId).push({
             type: 'like',
             fromName: userData.name,
@@ -644,9 +651,11 @@ function toggleFollow(targetId, targetName, e) {
     if (snap.exists()) {
       followRef.remove();
       followerRef.remove();
+      delete followCache[targetId];
     } else {
       followRef.set(true);
       followerRef.set(true);
+      followCache[targetId] = true;
       db.ref('notifications/' + targetId).push({
         type: 'follow',
         fromName: userData.name,
@@ -661,8 +670,15 @@ function toggleFollow(targetId, targetName, e) {
 function openDM(uid, name, ava) {
   currentDMUser = {id: uid, name: name, ava: ava};
   document.getElementById('dmUserName').textContent = name;
-  document.getElementById('dmUserAva').src = ava || '';
-  if (!ava) document.getElementById('dmUserAva').outerHTML = `<div class="ava" id="dmUserAva" style="width:32px;height:32px">${name.charAt(0)}</div>`;
+  if (ava) {
+    document.getElementById('dmUserAva').src = ava;
+    document.getElementById('dmUserAva').style.display = 'block';
+    document.getElementById('dmUserAvaText').style.display = 'none';
+  } else {
+    document.getElementById('dmUserAva').style.display = 'none';
+    document.getElementById('dmUserAvaText').style.display = 'flex';
+    document.getElementById('dmUserAvaText').textContent = name.charAt(0);
+  }
   document.getElementById('dmModal').classList.add('on');
   loadDMs();
 }
@@ -689,7 +705,7 @@ function loadDMs() {
 
 function sendDM() {
   const text = document.getElementById('dmInput').value.trim();
-  if (!text ||!currentDMUser) return;
+  if (!text || !currentDMUser) return;
   const chatId = [user.uid, currentDMUser.id].sort().join('_');
   db.ref('messages/' + chatId).push({
     from: user.uid,
@@ -736,7 +752,6 @@ function loadNotifications() {
       </div>`;
     });
     document.getElementById('notifList').innerHTML = html || '<div class="small" style="padding:20px;text-align:center">No notifications</div>';
-    // Mark as read
     snap.forEach(child => {
       db.ref('notifications/' + user.uid + '/' + child.key + '/read').set(true);
     });
@@ -759,7 +774,6 @@ function checkNotifications() {
 function search() {
   const term = document.getElementById('searchInput').value.toLowerCase();
   if (!term) return loadFeed();
-  // Simple search implementation
   alert('Search feature: ' + term);
 }
 
